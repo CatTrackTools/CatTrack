@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CatTrack runner tools</title>
+<style>
+  :root {
+    --bg: #f6f1ec; --card: #ffffff; --text: #2b2220; --muted: #8a7d78;
+    --accent: #b5432b; --border: #e7ddd6; --result-bg: #f7e9e4;
+  }
+  body.dark {
+    --bg: #1a1412; --card: #241b18; --text: #f3ece8; --muted: #a8968f;
+    --accent: #d9543a; --border: #3a2a25; --result-bg: #321f1a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 16px; max-width: 480px; margin: 0 auto;
+    transition: background .3s, color .3s;
+  }
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .hamburger {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    width: 42px; height: 42px; cursor: pointer; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; gap: 4px;
+  }
+  .hamburger span { display: block; width: 18px; height: 2px; background: var(--text); border-radius: 2px; }
+  h1 { font-size: 1.2rem; flex: 1; text-align: center; }
+  .spacer { width: 42px; }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    opacity: 0; visibility: hidden; transition: opacity .3s; z-index: 20;
+  }
+  .overlay.show { opacity: 1; visibility: visible; }
+  .drawer {
+    position: fixed; top: 0; left: 0; height: 100%; width: 280px; max-width: 80%;
+    background: var(--card); border-right: 1px solid var(--border);
+    transform: translateX(-100%); transition: transform .3s; z-index: 30;
+    padding: 20px; overflow-y: auto;
+  }
+  .drawer.show { transform: translateX(0); }
+  .menu-section { margin-bottom: 24px; }
+  .menu-label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .theme-opts { display: flex; gap: 6px; }
+  .theme-opt {
+    flex: 1; padding: 10px 4px; border: 1px solid var(--border); background: var(--bg);
+    color: var(--muted); border-radius: 8px; cursor: pointer; font-size: .85rem; text-align: center;
+  }
+  .theme-opt.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .nav-btn {
+    display: block; width: 100%; text-align: left; padding: 12px; margin-bottom: 8px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; cursor: pointer; font-size: .95rem;
+  }
+  .nav-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tab {
+    flex: 1; min-width: 45%; padding: 10px 6px; border: 1px solid var(--border);
+    background: var(--card); color: var(--muted); border-radius: 8px;
+    cursor: pointer; font-size: .85rem; text-align: center;
+  }
+  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .view { display: none; }
+  .view.active { display: block; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin: 12px 0 4px; }
+  input, select {
+    width: 100%; padding: 12px; font-size: 1.05rem; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+  .swap-btn {
+    background: var(--card); border: 1px solid var(--border); color: var(--accent);
+    border-radius: 8px; padding: 10px; cursor: pointer; font-size: .9rem; margin-top: 12px; width: 100%;
+  }
+  button.calc {
+    width: 100%; margin-top: 16px; padding: 13px; background: var(--accent); color: #fff;
+    border: none; border-radius: 8px; font-size: 1rem; cursor: pointer;
+  }
+  .result { margin-top: 16px; background: var(--result-bg); border-radius: 10px; padding: 16px; display: none; }
+  .result.show { display: block; }
+  .result .line { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .result .line:last-child { border-bottom: none; }
+  .result .line span:last-child { font-weight: 600; text-align: right; }
+  .err { color: #dc2626; font-size: .85rem; margin-top: 10px; display: none; }
+  body.dark .err { color: #f87171; }
+  .hint { font-size: .75rem; color: var(--muted); margin-top: 6px; }
+  .iv-out { font-size: 1.05rem; line-height: 1.85; word-break: break-word; }
+  .iv-out .total { color: var(--muted); font-size: .95rem; margin-bottom: 10px; }
+  .iv-out .cycle-title { font-weight: 700; margin-top: 14px; }
+  .iv-out .cycle-desc { color: var(--muted); font-size: .92rem; }
+  .iv-out .times { margin: 2px 0; }
+  .iv-out .avg { font-weight: 700; }
+  .pred-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .pred-table td { padding: 9px 4px; border-bottom: 1px solid var(--border); font-size: 1.05rem; }
+  .pred-table tr:last-child td { border-bottom: none; }
+  .pred-table td:first-child { color: var(--muted); }
+  .pred-table td:last-child { text-align: right; font-weight: 600; }
+  .pred-table .pace { color: var(--muted); font-weight: 400; font-size: .9rem; }
+  .rep-block { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 12px; }
+  .rep-head { font-size: .9rem; font-weight: 600; margin-bottom: 8px; }
+  .rep-inputs { display: flex; gap: 8px; }
+  .rep-inputs > div { flex: 1; }
+  .rep-inputs label { margin: 0 0 3px; font-size: .72rem; text-align: center; }
+  .rep-inputs input { padding: 10px 4px; text-align: center; }
+  .cat-box {
+    display: flex; justify-content: center; align-items: center;
+    width: 100%; margin: 4px 0 18px; overflow: hidden;
+  }
+  .cat-box img { width:100%; max-height:120px; height:auto; object-fit:cover; transform:scale(1.06); transform-origin:center; }
+  .settings-head {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 12px; cursor: pointer; font-size: .95rem; text-align: left;
+  }
+  .settings-head .gear { width: 18px; height: 18px; fill: var(--text); flex-shrink: 0; }
+  .settings-head .chev { margin-left: auto; transition: transform .25s; font-size: .8rem; color: var(--muted); }
+  .settings.open .chev { transform: rotate(180deg); }
+  .settings-body { max-height: 0; overflow: hidden; transition: max-height .25s ease; }
+  .settings.open .settings-body { max-height: 220px; }
+  .settings-inner { padding-top: 12px; }
+  .seg-toggle { display: flex; gap: 6px; }
+  .seg-btn {
+    flex: 1; padding: 10px 4px; border: 1px solid var(--border); background: var(--bg);
+    color: var(--muted); border-radius: 8px; cursor: pointer; font-size: .9rem; text-align: center;
+  }
+  .seg-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  input[type="range"] { -webkit-appearance:none; appearance:none; height:6px; border-radius:3px; background:var(--border); cursor:pointer; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:18px; height:18px; border-radius:50%; background:var(--accent); border:2px solid var(--card); }
+  input[type="range"]::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:var(--accent); border:2px solid var(--card); }
+  input[type="range"]::-moz-range-track { height:6px; border-radius:3px; background:var(--border); }
+  .tp-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .tp-table th { text-align: left; font-size: .75rem; color: var(--muted); font-weight: 600; padding: 6px 4px; border-bottom: 2px solid var(--border); }
+  .tp-table td { padding: 8px 4px; border-bottom: 1px solid var(--border); font-size: 1rem; }
+  .tp-table tr:last-child td { border-bottom: none; }
+  .tp-table td:first-child { color: var(--muted); }
+  .tp-table td:nth-child(2), .tp-table td:nth-child(3) { text-align: right; font-weight: 600; }
+  .tp-table td:nth-child(3) { color: var(--accent); }
+  .tp-lines div { padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 1.05rem; }
+  .tp-lines div:last-child { border-bottom: none; }
+  .zone-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.95rem; }
+  .zone-item:last-child { border-bottom: none; }
+  .zone-name { color: var(--muted); }
+  .zone-value { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay"></div>
+<nav class="drawer" id="drawer">
+  
+  <div class="menu-section settings" id="settings">
+    <button class="settings-head" id="settingsToggle">
+     <svg class="gear" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94a7.49 7.49 0 000-1.88l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.61-.22l-2.39.96a7.3 7.3 0 00-1.62-.94l-.36-2.54a.5.5 0 00-.5-.42h-3.84a.5.5 0 00-.5.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 00-.61.22L2.65 8.84a.5.5 0 00.12.64l2.03 1.58a7.49 7.49 0 000 1.88l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32c.14.24.42.34.61.22l2.39-.96c.49.38 1.03.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.24.1.5 0 .61-.22l1.92-3.32a.5.5 0 00-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/></svg>
+     <span data-i18n="settings">Paramètres</span>
+     <span class="chev">▾</span>
+    </button>
+    <div class="settings-body">
+      <div class="settings-inner">
+        <div class="menu-label" data-i18n="themeLabel">Theme</div>
+        <div class="theme-opts">
+          <div class="theme-opt" data-theme="light" data-i18n="themeLight">Clair</div>
+          <div class="theme-opt" data-theme="dark" data-i18n="themeDark">Sombre</div>
+          <div class="theme-opt" data-theme="auto" data-i18n="themeAuto">Auto</div>
+        </div>
+        <div class="menu-label" style="margin-top:12px;" data-i18n="langLabel">Langue / Language</div>
+        <div class="theme-opts" id="langOpts">
+          <div class="theme-opt" onclick="setLanguage('fr')">FR</div>
+          <div class="theme-opt" onclick="setLanguage('en')">EN</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="menu-section">
+    <div class="menu-label" data-i18n="navLabel">Navigation</div>
+    <button class="nav-btn active" data-view="conversion" data-i18n="navConversion">Conversion</button>
+    <button class="nav-btn" data-view="intervals" data-i18n="navIntervals">Générateur d'intervalles</button>
+    <button class="nav-btn" data-view="prediction" data-i18n="navPrediction">Prédiction de performance</button>
+    <button class="nav-btn" data-view="passages" data-i18n="navPassages">Temps de passage</button>
+    <button class="nav-btn" data-view="zones" data-i18n="navZones">Zones d'entraînement</button>
+    <button class="nav-btn" data-view="about" data-i18n="navAbout">À propos</button>
+  </div>
+</nav>
+
+<header>
+  <button class="hamburger" id="menuBtn"><span></span><span></span><span></span></button>
+  <h1 id="pageTitle">Conversion</h1>
+  <div class="spacer"></div>
+</header>
+
+<!-- VUE CONVERSION -->
+<div class="view active" id="view-conversion">
+  <div class="tabs">
+    <div class="tab active" data-p="conv" data-i18n="tabConv">Convertisseur</div>
+    <div class="tab" data-p="pace" data-i18n="tabPace">Allure</div>
+    <div class="tab" data-p="dist" data-i18n="tabDist">Distance</div>
+    <div class="tab" data-p="time" data-i18n="tabTime">Temps</div>
+  </div>
+
+  <div class="card">
+    <div class="panel active" id="conv">
+      <label id="convLabel" data-i18n="lblSpeedKmh">Vitesse (km/h)</label>
+      <input type="text" id="convInput" placeholder="12">
+      <button class="swap-btn" id="swapBtn">Passer en min/km</button>
+      <div class="result" id="convResult">
+        <div class="line"><span data-i18n="resPace">Allure</span><span id="convPace">-</span></div>
+        <div class="line"><span data-i18n="resSpeed">Vitesse</span><span id="convSpeed">-</span></div>
+      </div>
+      <div class="err" id="convErr" data-i18n="errInvalidVal">Valeur invalide.</div>
+    </div>
+
+    <div class="panel" id="pace">
+      <div class="row">
+        <div><label data-i18n="lblTimeHms">Temps (hh:mm:ss)</label><input type="text" id="paceTime" placeholder="00:45:00"></div>
+        <div><label data-i18n="lblDistKm">Distance (km)</label><input type="text" id="paceDist" placeholder="10"></div>
+      </div>
+      <button class="calc" id="paceBtn" data-i18n="btnCalcPace">Calculer l'allure</button>
+      <div class="result" id="paceResult">
+        <div class="line"><span data-i18n="resPace">Allure</span><span id="pacePace">-</span></div>
+        <div class="line"><span data-i18n="resSpeed">Vitesse</span><span id="paceSpeed">-</span></div>
+      </div>
+      <div class="err" id="paceErr" data-i18n="errInvalidFields">Champs invalides.</div>
+    </div>
+
+    <div class="panel" id="dist">
+      <div class="row">
+        <div><label data-i18n="lblTimeHms">Temps (hh:mm:ss)</label><input type="text" id="distTime" placeholder="01:00:00"></div>
+        <div><label data-i18n="lblPaceMinKm">Allure (min/km)</label><input type="text" id="distPace" placeholder="5:30"></div>
+      </div>
+      <button class="calc" id="distBtn" data-i18n="btnCalcDist">Calculer la distance</button>
+      <div class="result" id="distResult">
+        <div class="line"><span data-i18n="lblDist">Distance</span><span id="distOut">-</span></div>
+      </div>
+      <div class="err" id="distErr" data-i18n="errInvalidFields">Champs invalides.</div>
+    </div>
+
+    <div class="panel" id="time">
+      <div class="row">
+        <div><label data-i18n="lblPaceMinKm">Allure (min/km)</label><input type="text" id="timePace" placeholder="5:30"></div>
+        <div><label data-i18n="lblDistKm">Distance (km)</label><input type="text" id="timeDist" placeholder="21.1"></div>
+      </div>
+      <button class="calc" id="timeBtn" data-i18n="btnCalcTime">Calculer le temps</button>
+      <div class="result" id="timeResult">
+        <div class="line"><span data-i18n="lblTime">Temps</span><span id="timeOut">-</span></div>
+      </div>
+      <div class="err" id="timeErr" data-i18n="errInvalidFields">Champs invalides.</div>
+    </div>
+  </div>
+</div>
+
+<!-- VUE INTERVALLES -->
+<div class="view" id="view-intervals">
+  <div class="card">
+    <label data-i18n="lblSession">Seance</label>
+    <input type="text" id="ivSession" placeholder="2x(6x200m r45&quot;)">
+    <div class="hint" data-i18n="hintSession">Ex : 2x(6x200m r45") ou 5x1000m. r = recuperation, m optionnel.</div>
+    <button class="calc" id="ivGenBtn" data-i18n="btnGenFields">Generer les champs</button>
+    <div id="ivFields"></div>
+    <button class="calc" id="ivCalcBtn" style="display:none;" data-i18n="btnCalc">Calculer</button>
+    <div class="err" id="ivErr" data-i18n="errInvalidFields">Champs invalides.</div>
+    <div class="result" id="ivResult"></div>
+    <button class="swap-btn" id="ivUnitBtn" style="display:none;" data-i18n="btnKmh">Afficher en km/h</button>
+    <button class="swap-btn" id="ivCopyBtn" style="display:none;" data-i18n="btnCopy">Copier le resultat</button>
+  </div>
+</div>
+
+<!-- VUE PREDICTION -->
+<div class="view" id="view-prediction">
+  <div class="card">
+    <label data-i18n="lblKnownDist">Distance connue</label>
+    <select id="prFrom">
+      <option value="5000" selected>5 km</option>
+      <option value="10000">10 km</option>
+      <option value="21097.5" data-i18n="optSemi">Semi-marathon</option>
+      <option value="42195">Marathon</option>
+    </select>
+    <label data-i18n="lblRealTime">Temps realise</label>
+    <input type="text" id="prTime" placeholder="20:00">
+    <div class="hint" data-i18n="hintFormatTime">Format mm:ss ou hh:mm:ss.</div>
+    <button class="calc" id="prCalcBtn" data-i18n="btnPredict">Predire</button>
+    <div class="err" id="prErr" data-i18n="errInvalidVal">Valeur invalide.</div>
+    <div class="result" id="prResult"></div>
+    <button class="swap-btn" id="prCopyBtn" style="display:none;" data-i18n="btnCopy">Copier le resultat</button>
+    <div class="hint" data-i18n="hintRiegel">Formule de Riegel (exposant 1.06) Ce calcul suppose que vous ayez suivi un entraînement spécifique pour la distance visée. La prédiction est une estimation et peut varier selon l'entraînement, les conditions et les facteurs individuels.</div>
+  </div>
+</div>
+
+<!-- VUE TEMPS DE PASSAGE -->
+<div class="view" id="view-passages">
+  <div class="card">
+    <label data-i18n="lblType">Type</label>
+    <div class="seg-toggle" id="tpType">
+      <div class="seg-btn active" data-t="track" data-i18n="typeTrack">Piste</div>
+      <div class="seg-btn" data-t="road" data-i18n="typeRoad">Route</div>
+    </div>
+    <label data-i18n="lblDist">Distance</label>
+    <select id="tpDist"></select>
+    <label data-i18n="lblTargetTime">Temps vise</label>
+    <div class="rep-inputs" id="tpTimeInputs">
+      <div><label id="tpL0">min</label><input type="text" id="tpF0" inputmode="numeric" placeholder="0"></div>
+      <div><label id="tpL1">sec</label><input type="text" id="tpF1" inputmode="numeric" placeholder="0"></div>
+      <div><label id="tpL2">1/10</label><input type="text" id="tpF2" inputmode="numeric" placeholder="0"></div>
+    </div>
+    <div id="tpStepWrap">
+      <label data-i18n="lblSplitStep">Temps de passage sur:</label>
+      <div class="seg-toggle" id="tpStep">
+        <div class="seg-btn active" data-s="1000">1 km</div>
+        <div class="seg-btn" data-s="2000">2 km</div>
+      </div>
+    </div>
+    <label data-i18n="lblSplitDist">Repartition</label>
+    <div class="seg-toggle" id="tpSplit">
+      <div class="seg-btn" data-k="negative" data-i18n="splitNeg">Negative</div>
+      <div class="seg-btn active" data-k="neutral" data-i18n="splitNeu">Neutre</div>
+      <div class="seg-btn" data-k="positive" data-i18n="splitPos">Positive</div>
+    </div>
+    <div id="tpIntensityWrap" style="display:none; margin-top: 10px;">
+      <label><span data-i18n="lblIntensity">Intensité</span> : <span id="tpIntensityVal">10%</span></label>
+      <input type="range" id="tpIntensity" min="0" max="30" step="1" value="10" style="width:100%;">
+    </div>
+    <button class="calc" id="tpCalcBtn" data-i18n="btnCalc">Calculer</button>
+    <div class="err" id="tpErr" data-i18n="errInvalidVal">Valeur invalide.</div>
+    <div class="result" id="tpResult"></div>
+    <button class="swap-btn" id="tpCopyBtn" style="display:none;" data-i18n="btnCopy">Copier le resultat</button>
+  </div>
+</div>
+
+<!-- Vue : Zones d'entraînement -->
+<div class="view" id="view-zones">
+  <div class="card">
+    <label data-i18n="lblZoneDesc">Calculez vos allures cibles selon votre VMA</label>
+    <div class="form-group">
+      <input type="text" id="input-vma" step="0.5" placeholder="VMA (km/h)" value="15">
+    </div>
+
+    <button class="calc" onclick="calculateTrainingZones()" data-i18n="btnCalcZones">Calculer mes zones</button>
+
+    <div class="result" id="result-zones">
+      <div class="zone-item">
+        <span class="zone-name" data-i18n="z1Name">Z1 - Récupération</span>
+        <span class="zone-value" id="z1-pace">-</span>
+      </div>
+      <div class="zone-item">
+        <span class="zone-name" data-i18n="z2Name">Z2 - Endurance fondamentale</span>
+        <span class="zone-value" id="z2-pace">-</span>
+      </div>
+      <div class="zone-item">
+        <span class="zone-name" data-i18n="z3Name">Z3 - Tempo</span>
+        <span class="zone-value" id="z3-pace">-</span>
+      </div>
+      <div class="zone-item">
+        <span class="zone-name" data-i18n="z4Name">Z4 - Seuil anaérobie</span>
+        <span class="zone-value" id="z4-pace">-</span>
+      </div>
+      <div class="zone-item">
+        <span class="zone-name" data-i18n="z5Name">Z5 - VO2 max</span>
+        <span class="zone-value" id="z5-pace">-</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VUE A PROPOS -->
+<div class="view" id="view-about">
+  <div class="card">
+    <h2 style="font-size:1.1rem;margin-bottom:8px;">CatTrack runner tools</h2>
+    <p style="font-size:.9rem;color:var(--muted);margin-bottom:14px;">Version 1.0.0</p>
+    <div class="tp-lines">
+      <div><strong data-i18n="aboutLic">Licence</strong> — GPL-3.0-or-later</div>
+      <div><strong data-i18n="aboutCode">Code source</strong> — github.com/CatTrackTools/CatTrack</div>
+      <div><strong data-i18n="aboutPrivacy">Confidentialité</strong> — <span data-i18n="aboutPrivacyDesc">100 % local, aucune donnée collectée</span></div>
+      <div><strong data-i18n="aboutDeps">Dépendances</strong> — <span data-i18n="aboutDepsDesc">aucune (HTML/CSS/JS natif)</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= SYSTEME DE TRADUCTION ================= */
+const translations = {
+  fr: {
+    settings: "Paramètres",
+    themeLabel: "Theme",
+    themeLight: "Clair",
+    themeDark: "Sombre",
+    themeAuto: "Auto",
+    langLabel: "Langue / Language",
+    navLabel: "Navigation",
+    navConversion: "Conversion",
+    navIntervals: "Générateur d'intervalles",
+    navPrediction: "Prédiction de performance",
+    navPassages: "Temps de passage",
+    navZones: "Zones d'entraînement",
+    navAbout: "À propos",
+    tabConv: "Convertisseur",
+    tabPace: "Allure",
+    tabDist: "Distance",
+    tabTime: "Temps",
+    lblSpeedKmh: "Vitesse (km/h)",
+    lblPaceMinKm: "Allure (min/km)",
+    lblTimeHms: "Temps (hh:mm:ss)",
+    lblDistKm: "Distance (km)",
+    lblDist: "Distance",
+    lblTime: "Temps",
+    resPace: "Allure",
+    resSpeed: "Vitesse",
+    errInvalidVal: "Valeur invalide.",
+    errInvalidFields: "Champs invalides.",
+    btnCalcPace: "Calculer l'allure",
+    btnCalcDist: "Calculer la distance",
+    btnCalcTime: "Calculer le temps",
+    lblSession: "Seance",
+    hintSession: 'Ex : 2x(6x200m r45") ou 5x1000m. r = recuperation, m optionnel.',
+    btnGenFields: "Generer les champs",
+    btnCalc: "Calculer",
+    btnKmh: "Afficher en km/h",
+    btnPace: "Afficher en min/km",
+    btnCopy: "Copier le resultat",
+    lblKnownDist: "Distance connue",
+    optSemi: "Semi-marathon",
+    lblRealTime: "Temps realise",
+    hintFormatTime: "Format mm:ss ou hh:mm:ss.",
+    btnPredict: "Predire",
+    hintRiegel: "Formule de Riegel (exposant 1.06) Ce calcul suppose que vous ayez suivi un entraînement spécifique pour la distance visée. La prédiction est une estimation et peut varier selon l'entraînement, les conditions et les facteurs individuels.",
+    lblType: "Type",
+    typeTrack: "Piste",
+    typeRoad: "Route",
+    lblTargetTime: "Temps vise",
+    lblSplitStep: "Temps de passage sur:",
+    lblSplitDist: "Repartition",
+    splitNeg: "Negative",
+    splitNeu: "Neutre",
+    splitPos: "Positive",
+    lblIntensity: "Intensité",
+    lblZoneDesc: "Calculez vos allures cibles selon votre VMA",
+    btnCalcZones: "Calculer mes zones",
+    z1Name: "Z1 - Récupération",
+    z2Name: "Z2 - Endurance fondamentale",
+    z3Name: "Z3 - Tempo",
+    z4Name: "Z4 - Seuil anaérobie",
+    z5Name: "Z5 - VO2 max",
+    aboutLic: "Licence",
+    aboutCode: "Code source",
+    aboutPrivacy: "Confidentialité",
+    aboutPrivacyDesc: "100 % local, aucune donnée collectée",
+    aboutDeps: "Dépendances",
+    aboutDepsDesc: "aucune (HTML/CSS/JS natif)",
+    swapToPace: "Passer en min/km",
+    swapToKmh: "Passer en km/h"
+  },
+  en: {
+    settings: "Settings",
+    themeLabel: "Theme",
+    themeLight: "Light",
+    themeDark: "Dark",
+    themeAuto: "Auto",
+    langLabel: "Language / Langue",
+    navLabel: "Navigation",
+    navConversion: "Conversion",
+    navIntervals: "Interval Generator",
+    navPrediction: "Performance Prediction",
+    navPassages: "Splits / Passages",
+    navZones: "Training Zones",
+    navAbout: "About",
+    tabConv: "Converter",
+    tabPace: "Pace",
+    tabDist: "Distance",
+    tabTime: "Time",
+    lblSpeedKmh: "Speed (km/h)",
+    lblPaceMinKm: "Pace (min/km)",
+    lblTimeHms: "Time (hh:mm:ss)",
+    lblDistKm: "Distance (km)",
+    lblDist: "Distance",
+    lblTime: "Time",
+    resPace: "Pace",
+    resSpeed: "Speed",
+    errInvalidVal: "Invalid value.",
+    errInvalidFields: "Invalid fields.",
+    btnCalcPace: "Calculate pace",
+    btnCalcDist: "Calculate distance",
+    btnCalcTime: "Calculate time",
+    lblSession: "Workout",
+    hintSession: 'Ex: 2x(6x200m r45") or 5x1000m. r = recovery, m optional.',
+    btnGenFields: "Generate fields",
+    btnCalc: "Calculate",
+    btnKmh: "Show in km/h",
+    btnPace: "Show in min/km",
+    btnCopy: "Copy result",
+    lblKnownDist: "Known distance",
+    optSemi: "Half-marathon",
+    lblRealTime: "Achieved time",
+    hintFormatTime: "Format mm:ss or hh:mm:ss.",
+    btnPredict: "Predict",
+    hintRiegel: "Riegel formula (exponent 1.06). This assumes specific training for the target distance. Prediction is an estimate and may vary based on training, conditions, and individual factors.",
+    lblType: "Type",
+    typeTrack: "Track",
+    typeRoad: "Road",
+    lblTargetTime: "Target time",
+    lblSplitStep: "Split intervals at:",
+    lblSplitDist: "Split pacing",
+    splitNeg: "Negative",
+    splitNeu: "Neutral",
+    splitPos: "Positive",
+    lblIntensity: "Intensity",
+    lblZoneDesc: "Calculate your target paces based on your VMA",
+    btnCalcZones: "Calculate zones",
+    z1Name: "Z1 - Recovery",
+    z2Name: "Z2 - Easy / Endurance",
+    z3Name: "Z3 - Tempo",
+    z4Name: "Z4 - Anaerobic Threshold",
+    z5Name: "Z5 - VO2 max",
+    aboutLic: "License",
+    aboutCode: "Source code",
+    aboutPrivacy: "Privacy",
+    aboutPrivacyDesc: "100% local, no data collected",
+    aboutDeps: "Dependencies",
+    aboutDepsDesc: "none (native HTML/CSS/JS)",
+    swapToPace: "Switch to min/km",
+    swapToKmh: "Switch to km/h"
+  }
+};
+
+let currentLang = localStorage.getItem('cattrack_lang') || 'fr';
+
+function setLanguage(lang) {
+  currentLang = lang;
+  try { localStorage.setItem('cattrack_lang', lang); } catch(e){}
+
+  // Boutons langue actifs
+  document.querySelectorAll('#langOpts .theme-opt').forEach(function(o){
+    o.classList.toggle('active', o.textContent.toLowerCase() === lang);
+  });
+
+  // Mise à jour de tous les éléments avec data-i18n
+  document.querySelectorAll('[data-i18n]').forEach(function(el){
+    var key = el.getAttribute('data-i18n');
+    if (translations[lang] && translations[lang][key]) {
+      el.textContent = translations[lang][key];
+    }
+  });
+
+  // Mise à jour dynamique des textes textuels spécifiques liés aux états JS courants
+  var activeNavBtn = document.querySelector('.nav-btn.active');
+  if (activeNavBtn) {
+    document.getElementById('pageTitle').textContent = activeNavBtn.textContent;
+  }
+  
+  var swapBtn = document.getElementById('swapBtn');
+  if (swapBtn) {
+    swapBtn.textContent = (convMode === 'kmh') ? translations[lang].swapToPace : translations[lang].swapToKmh;
+  }
+  
+  var ivUnitBtn = document.getElementById('ivUnitBtn');
+  if (ivUnitBtn) {
+    ivUnitBtn.textContent = (ivUnit === 'pace') ? translations[lang].btnKmh : translations[lang].btnPace;
+  }
+}
+
+/* ================= LOGIQUE EXISTANTE DE L'APPLICATION ================= */
+function parseTime(s) {
+  var p = s.split(':').map(Number);
+  if (p.some(isNaN)) return null;
+  if (p.length === 3) return p[0]*3600 + p[1]*60 + p[2];
+  if (p.length === 2) return p[0]*60 + p[1];
+  if (p.length === 1) return p[0]*60;
+  return null;
+}
+function parsePace(s) {
+  var p = s.split(':').map(Number);
+  if (p.some(isNaN)) return null;
+  if (p.length === 2) return p[0] + p[1]/60;
+  if (p.length === 1) return p[0];
+  return null;
+}
+function fmtPace(minDec) {
+  var total = Math.round(minDec*60);
+  var m = Math.floor(total/60), s = total%60;
+  return m + ":" + String(s).padStart(2,'0');
+}
+function fmtTime(sec) {
+  sec = Math.round(sec);
+  var h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  return (h>0 ? h+":" : "") + String(m).padStart(h>0?2:1,'0') + ":" + String(s).padStart(2,'0');
+}
+
+/* --- Copie presse-papier --- */
+function copyText(text, btn) {
+  var done = function(){
+    var old = btn.textContent;
+    btn.textContent = (currentLang === 'en') ? 'Copied !' : 'Copie !';
+    setTimeout(function(){ btn.textContent = old; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(function(){ fallbackCopy(text); done(); });
+  } else {
+    fallbackCopy(text); done();
+  }
+}
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand('copy'); } catch(e){}
+  document.body.removeChild(ta);
+}
+
+/* --- Theme --- */
+var mq = window.matchMedia('(prefers-color-scheme: dark)');
+var currentTheme = 'auto';
+try { currentTheme = localStorage.getItem('theme') || 'auto'; } catch(e){}
+
+function applyTheme() {
+  var dark;
+  if (currentTheme === 'auto') dark = mq.matches;
+  else dark = (currentTheme === 'dark');
+  document.body.classList.toggle('dark', dark);
+  document.querySelectorAll('.theme-opt[data-theme]').forEach(function(o){
+    o.classList.toggle('active', o.dataset.theme === currentTheme);
+  });
+}
+if (mq.addEventListener) mq.addEventListener('change', applyTheme); else mq.addListener(applyTheme);
+
+document.querySelectorAll('.theme-opt[data-theme]').forEach(function(o){
+  o.onclick = function(){
+    currentTheme = o.dataset.theme;
+    try { localStorage.setItem('theme', currentTheme); } catch(e){}
+    applyTheme();
+  };
+});
+applyTheme();
+
+/* --- Menu lateral --- */
+var drawer = document.getElementById('drawer');
+var overlay = document.getElementById('overlay');
+function openMenu(){ drawer.classList.add('show'); overlay.classList.add('show'); }
+function closeMenu(){ drawer.classList.remove('show'); overlay.classList.remove('show'); }
+document.getElementById('menuBtn').onclick = openMenu;
+overlay.onclick = closeMenu;
+
+/* --- Navigation entre vues --- */
+document.querySelectorAll('.nav-btn').forEach(function(b){
+  b.onclick = function(){
+    document.querySelectorAll('.nav-btn').forEach(function(x){ x.classList.remove('active'); });
+    b.classList.add('active');
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+    document.getElementById('view-' + b.dataset.view).classList.add('active');
+    document.getElementById('pageTitle').textContent = b.textContent;
+    closeMenu();
+  };
+});
+
+/* --- Onglets conversion --- */
+document.querySelectorAll('.tab').forEach(function(t){
+  t.onclick = function(){
+    document.querySelectorAll('.tab').forEach(function(x){ x.classList.remove('active'); });
+    document.querySelectorAll('.panel').forEach(function(x){ x.classList.remove('active'); });
+    t.classList.add('active');
+    document.getElementById(t.dataset.p).classList.add('active');
+  };
+});
+
+/* --- Convertisseur --- */
+var convMode = 'kmh';
+document.getElementById('swapBtn').onclick = function(){
+  convMode = convMode === 'kmh' ? 'pace' : 'kmh';
+  document.getElementById('convLabel').textContent = (convMode === 'kmh') ? translations[currentLang].lblSpeedKmh : translations[currentLang].lblPaceMinKm;
+  this.textContent = (convMode === 'kmh') ? translations[currentLang].swapToPace : translations[currentLang].swapToKmh;
+  var el = document.getElementById('convInput');
+  el.placeholder = convMode === 'kmh' ? '12' : '5:30';
+  el.inputMode = convMode === 'kmh' ? 'decimal' : 'text';
+  document.getElementById('convResult').classList.remove('show');
+};
+document.getElementById('convInput').addEventListener('input', function(){
+  var el = this;
+  var res = document.getElementById('convResult');
+  document.getElementById('convErr').style.display = 'none';
+  var paceMin;
+  if (convMode === 'kmh') {
+    var kmh = parseFloat(el.value.replace(',', '.'));
+    if (!kmh || kmh <= 0) { res.classList.remove('show'); return; }
+    paceMin = 60 / kmh;
+  } else {
+    var p = parsePace(el.value);
+    if (!p || p <= 0) { res.classList.remove('show'); return; }
+    paceMin = p;
+  }
+  document.getElementById('convPace').textContent = fmtPace(paceMin) + ' min/km';
+  document.getElementById('convSpeed').textContent = (60/paceMin).toFixed(2).replace('.',',') + ' km/h';
+  res.classList.add('show');
+});
+
+/* --- Calculs conversion --- */
+document.getElementById('paceBtn').onclick = function(){
+  var sec = parseTime(document.getElementById('paceTime').value);
+  var dist = parseFloat(document.getElementById('paceDist').value.replace(',', '.'));
+  var err = document.getElementById('paceErr'), res = document.getElementById('paceResult');
+  if (!sec || !dist || dist <= 0) { err.style.display='block'; res.classList.remove('show'); return; }
+  err.style.display='none';
+  var paceMin = (sec/60) / dist;
+  document.getElementById('pacePace').textContent = fmtPace(paceMin) + ' min/km';
+  document.getElementById('paceSpeed').textContent = (60/paceMin).toFixed(2).replace('.',',') + ' km/h';
+  res.classList.add('show');
+};
+document.getElementById('distBtn').onclick = function(){
+  var sec = parseTime(document.getElementById('distTime').value);
+  var pace = parsePace(document.getElementById('distPace').value);
+  var err = document.getElementById('distErr'), res = document.getElementById('distResult');
+  if (!sec || !pace || pace <= 0) { err.style.display='block'; res.classList.remove('show'); return; }
+  err.style.display='none';
+  var dist = (sec/60) / pace;
+  document.getElementById('distOut').textContent = dist.toFixed(2).replace('.',',') + ' km';
+  res.classList.add('show');
+};
+document.getElementById('timeBtn').onclick = function(){
+  var pace = parsePace(document.getElementById('timePace').value);
+  var dist = parseFloat(document.getElementById('timeDist').value.replace(',', '.'));
+  var err = document.getElementById('timeErr'), res = document.getElementById('timeResult');
+  if (!pace || !dist || pace <= 0 || dist <= 0) { err.style.display='block'; res.classList.remove('show'); return; }
+  err.style.display='none';
+  var sec = pace * 60 * dist;
+  document.getElementById('timeOut').textContent = fmtTime(sec);
+  res.classList.add('show');
+};
+
+/* ================= GENERATEUR D'INTERVALLES ================= */
+function tokenize(str) {
+  var tokens = [], i = 0;
+  while (i < str.length) {
+    var c = str[i];
+    if (/\s/.test(c)) { i++; continue; }
+    if (c === '(' || c === ')') { tokens.push(c); i++; continue; }
+    if (c === '*' || c === 'x' || c === 'X') { tokens.push('x'); i++; continue; }
+    if (c === 'r' || c === 'R') { tokens.push('r'); i++; continue; }
+    if (c === '"') { i++; continue; }
+    if (/[0-9]/.test(c)) {
+      var num = '';
+      while (i < str.length && /[0-9.,']/.test(str[i])) { num += str[i]; i++; }
+      var unit = '';
+      if (i < str.length && /[a-zA-Z]/.test(str[i]) && str[i] !== 'x' && str[i] !== 'X' && str[i] !== 'r' && str[i] !== 'R') {
+        unit = str[i]; i++;
+      }
+      tokens.push({ t:'num', v:num, u:unit });
+      continue;
+    }
+    i++;
+  }
+  return tokens;
+}
+function parseItems(tokens, pos, endToken) {
+  var items = [];
+  while (pos < tokens.length) {
+    var tok = tokens[pos];
+    if (tok === endToken) break;
+    if (tok === ')') return { error: 'Parenthese fermee inattendue.' };
+    if (tok === 'x') return { error: 'Multiplicateur sans valeur.' };
+    if (tok === 'r') {
+      pos++;
+      var r = tokens[pos];
+      if (!r || r.t !== 'num') return { error: 'Recuperation invalide apres r.' };
+      var recSec = parseTimePrecise(r.v);
+      if (recSec === null || recSec <= 0) return { error: 'Recuperation invalide apres r.' };
+      items.push({ type:'rec', sec: recSec, label: fmtRecCompact(recSec) });
+      pos++;
+      continue;
+    }
+    if (tok.t === 'num') {
+      var mult = 1;
+      if (/^\d+$/.test(tok.v) && tokens[pos+1] === 'x') {
+        mult = parseInt(tok.v, 10);
+        pos += 2;
+        var next = tokens[pos];
+        if (next === '(') {
+          var sub = parseItems(tokens, pos+1, ')');
+          if (sub.error) return sub;
+          pos = sub.pos;
+          if (tokens[pos] !== ')') return { error: 'Parenthese non fermee.' };
+          pos++;
+          items.push({ type:'group', mult:mult, items:sub.items });
+        } else if (next && next.t === 'num') {
+          var d = tokenToDist(next);
+          if (d === null) return { error: 'Distance invalide.' };
+          pos++;
+          items.push({ type:'rep', mult:mult, dist:d });
+        } else {
+          return { error: 'Attendu une distance ou ( apres le multiplicateur.' };
+        }
+      } else {
+        var d2 = tokenToDist(tok);
+        if (d2 === null) return { error: 'Valeur invalide.' };
+        items.push({ type:'rep', mult:1, dist:d2 });
+        pos++;
+      }
+      continue;
+    }
+    return { error: 'Element non reconnu.' };
+  }
+  return { items:items, pos:pos };
+}
+function tokenToDist(tok) {
+  if (!tok || tok.t !== 'num') return null;
+  var v = tok.v.replace("'", ".").replace(",", ".");
+  if (!/^\d+(?:\.\d+)?$/.test(v)) return null;
+  var val = parseFloat(v);
+  if (!val || val <= 0) return null;
+  var u = (tok.u || 'm').toLowerCase();
+  return u === 'k' ? val*1000 : val;
+}
+function flatten(items) {
+  var reps = [], cycles = [];
+  function walk(list, cycle) {
+    for (var i=0; i<list.length; i++) {
+      var it = list[i];
+      if (it.type === 'rep') {
+        for (var k=0; k<it.mult; k++) {
+          reps.push({ dist: it.dist, cycle: cycle });
+          if (cycle) cycle.reps.push(it.dist);
+        }
+      } else if (it.type === 'rec') {
+        if (cycle) cycle.recs.push(it.sec);
+      } else if (it.type === 'group') {
+        var desc = describeGroup(it.items);
+        for (var c=0; c<it.mult; c++) {
+          var cyc = { reps:[], recs:[], desc:desc };
+          cycles.push(cyc);
+          walk(it.items, cyc);
+        }
+      }
+    }
+  }
+  walk(items, null);
+  return { reps:reps, cycles:cycles };
+}
+function describeGroup(items) {
+  var parts = [];
+  var i = 0;
+  while (i < items.length) {
+    var it = items[i];
+    if (it.type === 'rep') {
+      var count = it.mult;
+      var j = i+1;
+      while (j < items.length && items[j].type === 'rep' && items[j].dist === it.dist) {
+        count += items[j].mult;
+        j++;
+      }
+      parts.push((count>1 ? count+'x' : '') + it.dist + 'm');
+      i = j;
+    } else if (it.type === 'rec') {
+      parts.push('r' + (it.label || fmtRecCompact(it.sec)));
+      i++;
+    } else {
+      var inner = describeGroup(it.items);
+      parts.push((it.mult>1 ? it.mult+'x' : '') + '(' + inner + ')');
+      i++;
+    }
+  }
+  return parts.join(' ');
+}
+function fmtRecCompact(sec) {
+  var m = Math.floor(sec/60), s = sec - m*60;
+  if (m === 0) return Math.round(s) + '"';
+  return m + "'" + Math.round(s).toString().padStart(2,'0') + '"';
+}
+function parseTimePrecise(s) {
+  s = s.trim().replace(',', '.');
+  if (!s) return null;
+  var m = s.match(/^(\d+)'(\d+(?:\.\d+)?)$/);
+  if (m) return parseInt(m[1],10)*60 + parseFloat(m[2]);
+  m = s.match(/^(\d+):(\d+(?:\.\d+)?)$/);
+  if (m) return parseInt(m[1],10)*60 + parseFloat(m[2]);
+  m = s.match(/^(\d+(?:\.\d+)?)"/);
+  if (m) return parseFloat(m[1]);
+  if (/^\d+(?:\.\d+)?$/.test(s)) return parseFloat(s);
+  return null;
+}
+function fmtTrack(sec) {
+  var tenth = Math.round(sec * 10);
+  var min = Math.floor(tenth / 600);
+  var rem = tenth - min*600;
+  var s = Math.floor(rem / 10);
+  var d = rem - s*10;
+  if (d !== 0) {
+    var frac = '.' + d;
+    if (min === 0) return s + frac + '"';
+    return min + "'" + s + frac + '"';
+  }
+  if (min === 0) return s + '"';
+  return min + "'" + s + '"';
+}
+function fmtPaceCompact(minDec) {
+  var total = Math.round(minDec*60);
+  var m = Math.floor(total/60), s = total%60;
+  return m + ":" + String(s).padStart(2,'0');
+}
+function fmtSpeedCompact(speed) {
+  return speed.toFixed(1).replace('.',',') + " km/h";
+}
+var ivUnit = 'pace';
+var ivTree = null;
+var ivReps = null;
+var ivCycles = null;
+var ivCopyText = '';
+function unitLabel(paceMin, speed) {
+  return ivUnit === 'pace' ? fmtPaceCompact(paceMin) : fmtSpeedCompact(speed);
+}
+function avgLine(dist, times) {
+  var avgSec = times.reduce(function(a,b){ return a+b; }, 0) / times.length;
+  var avgPaceMin = (avgSec / dist) * 1000 / 60;
+  var avgSpeed = (dist/1000) / (avgSec/3600);
+  return fmtTrack(avgSec) + ' (' + unitLabel(avgPaceMin, avgSpeed) + ')';
+}
+function timesLine(times) {
+  return '( ' + times.map(function(t){ return fmtTrack(t); }).join(' - ') + ' )';
+}
+function renderInterval() {
+  if (!ivReps) return;
+  var blocks = document.querySelectorAll('.rep-block');
+  var times = [];
+  for (var i=0; i<blocks.length; i++) {
+    var mv = blocks[i].querySelector('.iv-min').value.trim();
+    var sv = blocks[i].querySelector('.iv-sec').value.trim();
+    var dv = blocks[i].querySelector('.iv-tenth').value.trim();
+    var mm = mv === '' ? 0 : parseInt(mv, 10);
+    var ss = sv === '' ? 0 : parseInt(sv, 10);
+    var dd = dv === '' ? 0 : parseInt(dv, 10);
+    if (isNaN(mm) || isNaN(ss) || isNaN(dd) || mm < 0 || ss < 0 || dd < 0 || dd > 9) {
+      document.getElementById('ivErr').textContent = (currentLang === 'en') ? ('Invalid value at repetition ' + (i+1) + '.') : ('Valeur invalide a la repetition ' + (i+1) + '.');
+      document.getElementById('ivErr').style.display = 'block';
+      document.getElementById('ivResult').classList.remove('show');
+      return;
+    }
+    var t = mm*60 + ss + dd/10;
+    if (t <= 0) {
+      document.getElementById('ivErr').textContent = (currentLang === 'en') ? ('Zero time at repetition ' + (i+1) + '.') : ('Temps nul a la repetition ' + (i+1) + '.');
+      document.getElementById('ivErr').style.display = 'block';
+      document.getElementById('ivResult').classList.remove('show');
+      return;
+    }
+    times.push(t);
+  }
+  document.getElementById('ivErr').style.display = 'none';
+  var total = ivReps.reduce(function(a,r){ return a + r.dist; }, 0);
+  var html = '<div class="iv-out">';
+  var text = describeGroup(ivTree.items) + '\nTotal : ' + total + 'm\n';
+  html += '<div>' + describeGroup(ivTree.items) + '</div>';
+  html += '<div class="total">Total : ' + total + 'm</div>';
+  if (ivCycles.length > 1) {
+    for (var c=0; c<ivCycles.length; c++) {
+      var cyc = ivCycles[c];
+      var cTimes = [], cDists = [];
+      for (var j=0; j<ivReps.length; j++) {
+        if (ivReps[j].cycle === cyc) { cTimes.push(times[j]); cDists.push(ivReps[j].dist); }
+      }
+      html += '<div class="cycle-title">Cycle ' + (c+1) + '</div>';
+      html += '<div class="cycle-desc">' + cyc.desc + '</div>';
+      html += '<div class="times">' + timesLine(cTimes) + '</div>';
+      var groups = {}, order = [];
+      for (var k=0; k<cDists.length; k++) {
+        if (!(cDists[k] in groups)) { groups[cDists[k]] = []; order.push(cDists[k]); }
+        groups[cDists[k]].push(cTimes[k]);
+      }
+      text += '\nCycle ' + (c+1) + '\n' + cyc.desc + '\n' + timesLine(cTimes) + '\n';
+      order.forEach(function(d){
+        html += '<div class="avg">' + d + 'm = ' + avgLine(d, groups[d]) + '</div>';
+        text += d + 'm = ' + avgLine(d, groups[d]) + '\n';
+      });
+    }
+  } else {
+    html += '<div class="times">' + timesLine(times) + '</div>';
+    var g = {}, o = [];
+    for (var n=0; n<ivReps.length; n++) {
+      if (!(ivReps[n].dist in g)) { g[ivReps[n].dist] = []; o.push(ivReps[n].dist); }
+      g[ivReps[n].dist].push(times[n]);
+    }
+    text += timesLine(times) + '\n';
+    if (o.length === 1) {
+      var avgLabel = (currentLang === 'en') ? 'Average = ' : 'Moyenne = ';
+      html += '<div class="avg">' + avgLabel + avgLine(o[0], g[o[0]]) + '</div>';
+      text += avgLabel + avgLine(o[0], g[o[0]]) + '\n';
+    } else {
+      o.forEach(function(d){
+        var avgLabel = (currentLang === 'en') ? ('Average ' + d + 'm = ') : ('Moyenne ' + d + 'm = ');
+        html += '<div class="avg">' + avgLabel + avgLine(d, g[d]) + '</div>';
+        text += avgLabel + avgLine(d, g[d]) + '\n';
+      });
+    }
+  }
+  html += '</div>';
+  ivCopyText = text.trim();
+  document.getElementById('ivResult').innerHTML = html;
+  document.getElementById('ivResult').classList.add('show');
+}
+document.getElementById('ivUnitBtn').onclick = function(){
+  ivUnit = ivUnit === 'pace' ? 'kmh' : 'pace';
+  this.textContent = ivUnit === 'pace' ? translations[currentLang].btnKmh : translations[currentLang].btnPace;
+  renderInterval();
+};
+document.getElementById('ivGenBtn').onclick = function(){
+  var err = document.getElementById('ivErr');
+  var box = document.getElementById('ivFields');
+  document.getElementById('ivResult').classList.remove('show');
+  document.getElementById('ivUnitBtn').style.display = 'none';
+  document.getElementById('ivCopyBtn').style.display = 'none';
+  ivTree = null; ivReps = null; ivCycles = null; ivCopyText = '';
+  var res = parseItems(tokenize(document.getElementById('ivSession').value), 0, null);
+  if (res.error) { err.textContent = res.error; err.style.display='block'; return; }
+  var flat = flatten(res.items);
+  if (!flat.reps.length || flat.reps.length > 200) { err.textContent = (currentLang === 'en') ? 'Invalid workout.' : 'Seance invalide.'; err.style.display='block'; return; }
+  err.style.display='none';
+  ivTree = { items: res.items };
+  ivReps = flat.reps;
+  ivCycles = flat.cycles;
+  var html = '';
+  for (var i=0; i<flat.reps.length; i++) {
+    var minText = (currentLang === 'en') ? 'min' : 'min';
+    var secText = (currentLang === 'en') ? 'sec' : 'sec';
+    var tenthText = (currentLang === 'en') ? 'tenths' : 'dixièmes';
+    html += '<div class="rep-block">'
+          + '<div class="rep-head">Rep ' + (i+1) + ' - ' + flat.reps[i].dist + 'm</div>'
+          + '<div class="rep-inputs">'
+          + '<div><label>' + minText + '</label><input type="text" class="iv-min" inputmode="numeric" placeholder="0"></div>'
+          + '<div><label>' + secText + '</label><input type="text" class="iv-sec" inputmode="numeric" placeholder="0"></div>'
+          + '<div><label>' + tenthText + '</label><input type="text" class="iv-tenth" inputmode="numeric" placeholder="0"></div>'
+          + '</div></div>';
+  }
+  box.innerHTML = html;
+  document.getElementById('ivCalcBtn').style.display = 'block';
+};
+document.getElementById('ivCalcBtn').onclick = function(){
+  document.getElementById('ivUnitBtn').style.display = 'block';
+  document.getElementById('ivCopyBtn').style.display = 'block';
+  renderInterval();
+};
+document.getElementById('ivCopyBtn').onclick = function(){
+  copyText(ivCopyText, this);
+};
+
+/* ================= PREDICTION DE PERFORMANCE (Riegel) ================= */
+var RIEGEL_EXP = 1.06;
+var prCopyText = '';
+var predTargets = [
+  { label: '5 km', dist: 5000 },
+  { label: '10 km', dist: 10000 },
+  { label: 'Semi-marathon', dist: 21097.5 },
+  { label: 'Marathon', dist: 42195 }
+];
+function renderPrediction() {
+  var fromDist = parseFloat(document.getElementById('prFrom').value);
+  var sec = parseTime(document.getElementById('prTime').value);
+  var err = document.getElementById('prErr'), res = document.getElementById('prResult');
+  if (!fromDist || !sec || sec <= 0) { err.style.display='block'; res.classList.remove('show'); return; }
+  err.style.display='none';
+  var baseLabel = fromDist >= 1000 ? (fromDist/1000) + ' km' : fromDist + ' m';
+  var html = '<table class="pred-table">';
+  var text = 'Prediction (Riegel)\nBase : ' + fmtTime(sec) + ' sur ' + baseLabel + '\n';
+  predTargets.forEach(function(t){
+    var t2 = sec * Math.pow(t.dist / fromDist, RIEGEL_EXP);
+    var paceMin = (t2/60) / (t.dist/1000);
+    // Traduire dynamiquement semi-marathon si en anglais
+    var displayLabel = t.label;
+    if (currentLang === 'en' && displayLabel === 'Semi-marathon') displayLabel = 'Half-marathon';
+    html += '<tr><td>' + displayLabel + '</td><td>' + fmtTime(t2)
+          + ' <span class="pace">' + fmtPace(paceMin) + '/km</span></td></tr>';
+    text += displayLabel + ' : ' + fmtTime(t2) + ' (' + fmtPace(paceMin) + '/km)\n';
+  });
+  html += '</table>';
+  prCopyText = text.trim();
+  res.innerHTML = html;
+  res.classList.add('show');
+  document.getElementById('prCopyBtn').style.display = 'block';
+}
+document.getElementById('prCalcBtn').onclick = renderPrediction;
+document.getElementById('prCopyBtn').onclick = function(){
+  copyText(prCopyText, this);
+};
+document.getElementById('settingsToggle').onclick = function(){
+  document.getElementById('settings').classList.toggle('open');
+};
+
+/* ================= TEMPS DE PASSAGE ================= */
+var tpMode = 'track', tpStep = 1000, tpSplit = 'neutral', tpCopy = '', tpIntensity = 0.10;
+var tpTrack = [200,400,800,1000,1500];
+var tpRoad = [
+  {l:'5 km',d:5000},{l:'10 km',d:10000},{l:'20 km',d:20000},
+  {l:'Semi-marathon',d:21097.5},{l:'Marathon',d:42195}
+];
+function tpFillDist() {
+  var sel = document.getElementById('tpDist');
+  sel.innerHTML = '';
+  if (tpMode === 'track') {
+    tpTrack.forEach(function(d){
+      var o = document.createElement('option');
+      o.value = d; o.textContent = d + ' m'; sel.appendChild(o);
+    });
+  } else {
+    tpRoad.forEach(function(x){
+      var o = document.createElement('option');
+      o.value = x.d; 
+      o.textContent = (currentLang === 'en' && x.l === 'Semi-marathon') ? 'Half-marathon' : x.l; 
+      sel.appendChild(o);
+    });
+  }
+}
+function tpSetSeg(groupId, attr, val, cb) {
+  document.querySelectorAll('#' + groupId + ' .seg-btn').forEach(function(b){
+    b.classList.toggle('active', b.dataset[attr] === val);
+  });
+  if (cb) cb(val);
+}
+document.querySelectorAll('#tpType .seg-btn').forEach(function(b){
+  b.onclick = function(){
+    tpMode = b.dataset.t;
+    tpSetSeg('tpType', 't', tpMode);
+    document.getElementById('tpStepWrap').style.display = tpMode === 'road' ? 'block' : 'none';
+    if (tpMode === 'track') {
+      document.getElementById('tpL0').textContent = 'min';
+      document.getElementById('tpL1').textContent = 'sec';
+      document.getElementById('tpL2').textContent = '1/10';
+    } else {
+      document.getElementById('tpL0').textContent = 'h';
+      document.getElementById('tpL1').textContent = 'min';
+      document.getElementById('tpL2').textContent = 'sec';
+    }
+    tpFillDist();
+  };
+});
+document.querySelectorAll('#tpStep .seg-btn').forEach(function(b){
+  b.onclick = function(){ tpStep = parseInt(b.dataset.s, 10); tpSetSeg('tpStep', 's', b.dataset.s); };
+});
+document.querySelectorAll('#tpSplit .seg-btn').forEach(function(b){
+  b.onclick = function(){
+    tpSplit = b.dataset.k;
+    tpSetSeg('tpSplit', 'k', b.dataset.k);
+    document.getElementById('tpIntensityWrap').style.display = tpSplit === 'neutral' ? 'none' : 'block';
+  };
+});
+document.getElementById('tpIntensity').oninput = function(){
+  tpIntensity = parseInt(this.value, 10) / 100;
+  document.getElementById('tpIntensityVal').textContent = this.value + '%';
+};
+function readTpTime() {
+  var f0 = parseInt(document.getElementById('tpF0').value, 10);
+  var f1 = parseInt(document.getElementById('tpF1').value, 10);
+  var f2 = parseInt(document.getElementById('tpF2').value, 10);
+  if (isNaN(f0)) f0 = 0; if (isNaN(f1)) f1 = 0; if (isNaN(f2)) f2 = 0;
+  if (f0 < 0 || f1 < 0 || f2 < 0) return null;
+  if (f1 > 59 || (tpMode === 'track' && f2 > 9)) return null;
+  if (tpMode === 'track') return f0*60 + f1 + f2/10;
+  return f0*3600 + f1*60 + f2;
+}
+function renderPassages() {
+  var totalDist = parseFloat(document.getElementById('tpDist').value);
+  var totalSec = readTpTime();
+  var err = document.getElementById('tpErr'), res = document.getElementById('tpResult');
+  if (!totalDist || totalSec === null || totalSec <= 0) { err.style.display='block'; res.classList.remove('show'); return; }
+  err.style.display='none';
+
+  var step = tpMode === 'track' ? 100 : tpStep;
+  var segs = [], rem = totalDist;
+  while (rem > step + 1e-6) { segs.push(step); rem -= step; }
+  if (rem > 1e-6) segs.push(rem);
+  var N = segs.length;
+  if (N < 1) { 
+    err.textContent = (currentLang === 'en') ? 'Distance too short for this step.' : 'Distance trop courte pour ce pas.'; 
+    err.style.display='block'; res.classList.remove('show'); return; 
+  }
+
+  var k = tpIntensity;
+  var w = [], sum = 0;
+  for (var i=0; i<N; i++) {
+    var t = (N === 1) ? 0.5 : i/(N-1);
+    var wi;
+    if (tpSplit === 'negative') wi = segs[i] * (1 + k*(0.5 - t));
+    else if (tpSplit === 'positive') wi = segs[i] * (1 + k*(t - 0.5));
+    else wi = segs[i];
+    w.push(wi); sum += wi;
+  }
+  var scale = totalSec / sum;
+
+  var html = '<div class="tp-lines">';
+  var text = 'Splits (' + tpSplit + ')\n';
+  var cum = 0, cumDist = 0;
+  for (var j=0; j<N; j++) {
+    var segSec = w[j]*scale;
+    cum += segSec;
+    cumDist += segs[j];
+    var markLabel = cumDist >= 1000 ? (cumDist/1000) + ' km' : Math.round(cumDist) + ' m';
+    var segPace = fmtPace(segSec / (segs[j]/1000) / 60);
+    var line = markLabel + ' : ' + fmtTime(cum) + ' (' + segPace + '/km)';
+    html += '<div>' + line + '</div>';
+    text += line + '\n';
+  }
+  html += '</div>';
+  tpCopy = text.trim();
+  res.innerHTML = html;
+  res.classList.add('show');
+  document.getElementById('tpCopyBtn').style.display = 'block';
+}
+document.getElementById('tpCalcBtn').onclick = renderPassages;
+document.getElementById('tpCopyBtn').onclick = function(){ copyText(tpCopy, this); };
+tpFillDist();
+
+let currentVmaGlobal = 15;
+let isPaceUnit = true;
+
+function calculateTrainingZones() {
+  const vmaInput = document.getElementById('input-vma').value;
+  const vma = parseFloat(vmaInput.replace(',', '.'));
+
+  if (isNaN(vma) || vma <= 0) {
+    alert(currentLang === 'en' ? "Please enter a valid VMA value." : "Veuillez entrer une valeur de VMA valide.");
+    return;
+  }
+  
+  currentVmaGlobal = vma;
+  updateZonesDisplay();
+
+  document.getElementById('result-zones').classList.add('show');
+}
+
+function updateZonesDisplay() {
+  const vma = currentVmaGlobal;
+  const zones = [
+    { id: 'z1', minPct: 0.60, maxPct: 0.70 },
+    { id: 'z2', minPct: 0.70, maxPct: 0.75 },
+    { id: 'z3', minPct: 0.80, maxPct: 0.85 },
+    { id: 'z4', minPct: 0.88, maxPct: 0.93 },
+    { id: 'z5', minPct: 0.95, maxPct: 1.05 }
+  ];
+
+  zones.forEach(zone => {
+    const slowestSpeed = zone.minPct * vma;
+    const fastestSpeed = zone.maxPct * vma;
+
+    let textVal = "";
+    if (isPaceUnit) {
+      const minPace = speedToPaceCatTrack(fastestSpeed);
+      const maxPace = speedToPaceCatTrack(slowestSpeed);
+      textVal = `${minPace} - ${maxPace} /km`;
+    } else {
+      textVal = `${slowestSpeed.toFixed(1)} - ${fastestSpeed.toFixed(1)} km/h`;
+    }
+
+    document.getElementById(`${zone.id}-pace`).innerText = textVal;
+  });
+}
+
+function speedToPaceCatTrack(kmh) {
+  if (kmh <= 0) return "0:00";
+  const totalMinutes = 60 / kmh;
+  const minutes = Math.floor(totalMinutes);
+  const seconds = Math.round((totalMinutes - minutes) * 60);
+  return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+}
+
+// Initialisation de la langue au chargement de la page
+document.addEventListener('DOMContentLoaded', () => {
+  setLanguage(currentLang);
+});
+</script>
+</body>
+</html>
